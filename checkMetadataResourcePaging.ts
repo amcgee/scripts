@@ -1,8 +1,13 @@
 
 const args = [...Deno.args]
 
+const jsonFlag = args.indexOf('--json')
+if (jsonFlag !== -1) {
+  args.splice(jsonFlag, 1)
+}
+
 if (args.length < 2) {
-  console.log(`USAGE: deno run --allow-net getMetadataResources.ts [baseUrl] <username> <password>`)
+  console.error(`USAGE: deno run --allow-net getMetadataResources.ts [--json] [baseUrl] <username> <password>`)
   Deno.exit(1)
 }
 
@@ -22,7 +27,7 @@ headers.set('Authorization', 'Basic ' + btoa(`${username}:${password}`))
 headers.set('Accept', 'application/json')
 
 const resourcesUrl = baseUrl + '/api/resources'
-console.log('Fetching...', resourcesUrl)
+jsonFlag === -1 && console.log('Fetching...', resourcesUrl)
 const resources: { resources: Array<Resource> } = await (await fetch(resourcesUrl, {
     headers
 })).json();
@@ -30,7 +35,7 @@ const resources: { resources: Array<Resource> } = await (await fetch(resourcesUr
 const paged: [Resource, any][] = []
 const unpaged:[Resource, any][] = []
 const failed: [Resource, Error][] = []
-console.log(`Found ${resources.resources.length} resources!\n`)
+jsonFlag === -1 && console.log(`Found ${resources.resources.length} resources!\n`)
 await Promise.all(resources.resources.map(async resource => {
   try {
     const r = await (await fetch(resource.href + '?paging=true&pageSize=10', { headers })).json()
@@ -43,6 +48,15 @@ await Promise.all(resources.resources.map(async resource => {
     failed.push([resource, e])
   }
 }))
+
+if (jsonFlag !== -1) {
+  console.log(JSON.stringify({ 
+    unpaged: unpaged.map(([resource]) => resource),
+    failed: failed.map(([resource]) => resource),
+    paged: paged.map(([resource]) => resource),
+  }, undefined, 2))
+  Deno.exit(0)
+}
 
 console.log(`Found ${paged.length} resources WITH paging`)
 paged.forEach(([resource, r]) => { console.log(`\t${resource.plural}\t${resource.href}`)})
